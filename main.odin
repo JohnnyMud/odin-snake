@@ -18,3 +18,7 @@ draw_border :: proc() {
         fmt.println()
     }
 }
+
+main :: proc() {
+    draw_border()
+}
