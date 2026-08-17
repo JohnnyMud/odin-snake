@@ -7,7 +7,6 @@ import "core:sys/posix"
 
 WINDOW_WIDTH :: 45
 WINDOW_HEIGHT :: 20
-TARGET_FPS :: 60
 
 SNAKE_Y :: 10
 SNAKE_X :: 22
@@ -24,14 +23,14 @@ Direction :: enum {
     LEFT,
 }
 
-draw_game :: proc(snake_pos: Point) {
+draw_game :: proc(snake: []Point) {
     // Move cursor to top-left and redraw over the previous frame.
     fmt.print("\e[H")
     for y := 0; y < WINDOW_HEIGHT; y += 1 {
         for x := 0; x < WINDOW_WIDTH; x += 1 {
             if y == 0 || y == WINDOW_HEIGHT - 1 || x == 0 || x == WINDOW_WIDTH - 1 {
                 fmt.print("#")
-            } else if y == snake_pos.y && x == snake_pos.x {
+            } else if point_in_snake(snake, x, y) {
                 draw_snake()
             } else {
                 fmt.print(" ")
@@ -42,11 +41,13 @@ draw_game :: proc(snake_pos: Point) {
 }
 
 main :: proc() {
+    game_running := true
+    snake: [dynamic]Point
     stdin_fd, original := termios_config_setup()
     defer posix.tcsetattr(stdin_fd, .TCSANOW, &original)
 
 
-    buffer: [256]byte
+    buffer: [8]byte
     direction: Direction
 
     snake_head_position := Point {
@@ -54,9 +55,21 @@ main :: proc() {
         y = SNAKE_Y,
     }
 
-    draw_game(snake_head_position)
+    body_1 := Point {
+        x = SNAKE_X - 2,
+        y = SNAKE_Y,
+    }
 
-    for snake_head_position.x < WINDOW_WIDTH - 1 {
+    body_2 := Point {
+        x = SNAKE_X - 4,
+        y = SNAKE_Y,
+    }
+
+    append(&snake, snake_head_position, body_1, body_2)
+
+    draw_game(snake[:])
+
+    for snake[0].x < WINDOW_WIDTH - 1 {
         if poll_input(stdin_fd) {
             n, err := os.read(os.stdin, buffer[:])
             if err != nil || n <= 0 {
@@ -74,8 +87,8 @@ main :: proc() {
                     direction = .RIGHT
             }
         }
-        move_snake(&snake_head_position, direction)
-        draw_game(snake_head_position)
+        move_snake(snake[:], direction)
+        draw_game(snake[:])
         time.sleep(100 * time.Millisecond)
     }
 
@@ -85,16 +98,33 @@ draw_snake :: proc() {
     fmt.print("@")
 }
 
-move_snake :: proc(pos: ^Point, dir: Direction) {
+point_in_snake :: proc(snake: []Point, x, y: int) -> bool {
+    for p in snake {
+        if p.x == x && p.y == y {
+            return true
+        }
+    }
+    return false
+}
+
+move_snake :: proc(snake: []Point, dir: Direction) {
+    old_pos := snake[0]
+    n := len(snake)
     switch dir {
         case .UP:
-            pos.y -= 1
+            snake[0].y -= 1
         case .DOWN:
-            pos.y += 1
+            snake[0].y += 1
         case .LEFT:
-            pos.x -= 2
+            snake[0].x -= 2
         case .RIGHT:
-            pos.x += 2
+            snake[0].x += 2
+    }
+    for i in 1..<n {
+        current_pos := snake[i]
+        snake[i] = old_pos
+        old_pos = current_pos
+
     }
 }
 
