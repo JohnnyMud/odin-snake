@@ -69,7 +69,7 @@ main :: proc() {
 
     draw_game(snake[:])
 
-    for snake[0].x < WINDOW_WIDTH - 1 {
+    for game_running {
         if poll_input(stdin_fd) {
             n, err := os.read(os.stdin, buffer[:])
             if err != nil || n <= 0 {
@@ -88,10 +88,12 @@ main :: proc() {
             }
         }
         move_snake(snake[:], direction)
+        check_collision(snake[:], &game_running)
         draw_game(snake[:])
         time.sleep(100 * time.Millisecond)
     }
 
+    fmt.println("Game over!")
 }
 
 draw_snake :: proc() {
@@ -125,6 +127,21 @@ move_snake :: proc(snake: []Point, dir: Direction) {
         snake[i] = old_pos
         old_pos = current_pos
 
+    }
+}
+
+check_collision :: proc(snake: []Point, game_running: ^bool) {
+    // Check if the snake has collided with the game border
+    snake_head := snake[0]
+    if snake_head.x < 0 || snake_head.x >= WINDOW_WIDTH || snake_head.y < 0 || snake_head.y >= WINDOW_HEIGHT {
+        game_running^ = false
+    }
+    // Check if the snake has collided with itself
+    n := len(snake)
+    for i in 1..<n {
+        if snake[i].x == snake_head.x && snake[i].y == snake_head.y {
+            game_running^ = false
+        }
     }
 }
 
