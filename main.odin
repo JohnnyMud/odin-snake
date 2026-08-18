@@ -17,6 +17,7 @@ Point :: struct {
 }
 
 Direction :: enum {
+    NONE,
     UP,
     DOWN,
     RIGHT,
@@ -50,24 +51,7 @@ main :: proc() {
     buffer: [8]byte
     direction: Direction
 
-    snake_head_position := Point {
-        x = SNAKE_X,
-        y = SNAKE_Y,
-    }
-
-    body_1 := Point {
-        x = SNAKE_X - 2,
-        y = SNAKE_Y,
-    }
-
-    body_2 := Point {
-        x = SNAKE_X - 4,
-        y = SNAKE_Y,
-    }
-
-    append(&snake, snake_head_position, body_1, body_2)
-
-    draw_game(snake[:])
+    initialize_game_board(&snake)
 
     for game_running {
         if poll_input(stdin_fd) {
@@ -76,24 +60,36 @@ main :: proc() {
                 break
             }
             key := string(buffer[:n])
-            switch key {
-                case "w":
-                    direction = .UP
-                case "s":
-                    direction = .DOWN
-                case "a":
-                    direction = .LEFT
-                case "d":
-                    direction = .RIGHT
-            }
+            new_dir := direction_from_key(key)
+            direction = try_set_direction(direction, new_dir)
         }
-        move_snake(snake[:], direction)
-        check_collision(snake[:], &game_running)
+        if direction != .NONE {
+            move_snake(snake[:], direction)
+            check_collision(snake[:], &game_running)
+        }
         draw_game(snake[:])
         time.sleep(100 * time.Millisecond)
     }
 
     fmt.println("Game over!")
+}
+
+initialize_game_board :: proc(snake: ^[dynamic]Point) {
+    snake_head_position := Point {
+        x = SNAKE_X,
+        y = SNAKE_Y,
+    }
+    body_1 := Point {
+        x = SNAKE_X - 1,
+        y = SNAKE_Y,
+    }
+    body_2 := Point {
+        x = SNAKE_X - 2,
+        y = SNAKE_Y,
+    }
+
+    append(snake, snake_head_position, body_1, body_2)
+    draw_game(snake[:])
 }
 
 draw_snake :: proc() {
@@ -113,6 +109,8 @@ move_snake :: proc(snake: []Point, dir: Direction) {
     old_pos := snake[0]
     n := len(snake)
     switch dir {
+        case .NONE:
+            return
         case .UP:
             snake[0].y -= 1
         case .DOWN:
@@ -130,10 +128,34 @@ move_snake :: proc(snake: []Point, dir: Direction) {
     }
 }
 
+direction_from_key :: proc(key: string) -> Direction {
+    switch key {
+        case "w": return .UP
+        case "s": return .DOWN
+        case "a": return .LEFT
+        case "d": return .RIGHT
+        case:      return .NONE
+    }
+}
+
+try_set_direction :: proc(current, new: Direction) -> Direction {
+    if new == .NONE do return current
+    if current == .NONE do return new
+    if is_opposite(current, new) do return current
+    return new
+}
+
+is_opposite :: proc(a, b: Direction) -> bool {
+    return (a == .UP && b == .DOWN) ||
+           (a == .DOWN && b == .UP) ||
+           (a == .LEFT && b == .RIGHT) ||
+           (a == .RIGHT && b == .LEFT)
+}
+
 check_collision :: proc(snake: []Point, game_running: ^bool) {
     // Check if the snake has collided with the game border
     snake_head := snake[0]
-    if snake_head.x < 0 || snake_head.x >= WINDOW_WIDTH || snake_head.y < 0 || snake_head.y >= WINDOW_HEIGHT {
+    if snake_head.x < 1 || snake_head.x >= WINDOW_WIDTH - 1 || snake_head.y < 1 || snake_head.y >= WINDOW_HEIGHT - 1 {
         game_running^ = false
     }
     // Check if the snake has collided with itself
