@@ -4,6 +4,8 @@ import "core:fmt"
 import "core:time"
 import "core:os"
 import "core:sys/posix"
+import "core:math/rand"
+
 
 WINDOW_WIDTH :: 45
 WINDOW_HEIGHT :: 20
@@ -24,7 +26,7 @@ Direction :: enum {
     LEFT,
 }
 
-draw_game :: proc(snake: []Point) {
+draw_game :: proc(snake: []Point, food: Point) {
     // Move cursor to top-left and redraw over the previous frame.
     fmt.print("\e[H")
     for y := 0; y < WINDOW_HEIGHT; y += 1 {
@@ -33,6 +35,8 @@ draw_game :: proc(snake: []Point) {
                 fmt.print("#")
             } else if point_in_snake(snake, x, y) {
                 draw_snake()
+            } else if food.x == x && food.y == y {
+                add_food()
             } else {
                 fmt.print(" ")
             }
@@ -44,6 +48,7 @@ draw_game :: proc(snake: []Point) {
 main :: proc() {
     game_running := true
     snake: [dynamic]Point
+    food: Point
     stdin_fd, original := termios_config_setup()
     defer posix.tcsetattr(stdin_fd, .TCSANOW, &original)
 
@@ -51,7 +56,7 @@ main :: proc() {
     buffer: [8]byte
     direction: Direction
 
-    initialize_game_board(&snake)
+    initialize_game_board(&snake, &food)
 
     for game_running {
         if poll_input(stdin_fd) {
@@ -67,14 +72,14 @@ main :: proc() {
             move_snake(snake[:], direction)
             check_collision(snake[:], &game_running)
         }
-        draw_game(snake[:])
+        draw_game(snake[:], food)
         time.sleep(100 * time.Millisecond)
     }
 
     fmt.println("Game over!")
 }
 
-initialize_game_board :: proc(snake: ^[dynamic]Point) {
+initialize_game_board :: proc(snake: ^[dynamic]Point, food: ^Point) {
     snake_head_position := Point {
         x = SNAKE_X,
         y = SNAKE_Y,
@@ -89,7 +94,23 @@ initialize_game_board :: proc(snake: ^[dynamic]Point) {
     }
 
     append(snake, snake_head_position, body_1, body_2)
-    draw_game(snake[:])
+    food^ = generate_food_pos(snake[:])
+    draw_game(snake[:], food^)
+}
+
+add_food :: proc() {
+    fmt.print("*")
+}
+
+generate_food_pos :: proc(snake: []Point) -> Point {
+    food := Point {
+        x = rand.int_range(1, WINDOW_WIDTH - 1),
+        y = rand.int_range(1, WINDOW_HEIGHT - 1),
+    }
+    if point_in_snake(snake, food.x, food.y) {
+        return generate_food_pos(snake)
+    }
+    return food
 }
 
 draw_snake :: proc() {
