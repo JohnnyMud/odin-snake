@@ -117,9 +117,9 @@ main :: proc() {
 				direction = try_set_direction(direction, new_dir)
 			}
 			if direction != .NONE {
+                move_snake(&snake, direction, should_grow)
 				check_collision(snake[:], &game_running)
 				should_grow: bool = check_food_collision(snake[:], &food)
-				move_snake(&snake, direction, should_grow)
 			}
 			draw_game(snake[:], food)
 			time.sleep(100 * time.Millisecond)
