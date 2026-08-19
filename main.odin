@@ -69,8 +69,9 @@ main :: proc() {
             direction = try_set_direction(direction, new_dir)
         }
         if direction != .NONE {
-            move_snake(snake[:], direction)
             check_collision(snake[:], &game_running)
+            should_grow: bool = check_food_collision(snake[:], &food)
+            move_snake(&snake, direction, should_grow)
         }
         draw_game(snake[:], food)
         time.sleep(100 * time.Millisecond)
@@ -103,14 +104,25 @@ add_food :: proc() {
 }
 
 generate_food_pos :: proc(snake: []Point) -> Point {
+    // Horizontal moves use ±2, and the snake starts on an even X, so the head
+    // only ever occupies even columns. Food must use that same grid or it can
+    // spawn on an odd X the snake can never reach.
     food := Point {
-        x = rand.int_range(1, WINDOW_WIDTH - 1),
+        x = rand.int_range(1, (WINDOW_WIDTH - 1) / 2) * 2,
         y = rand.int_range(1, WINDOW_HEIGHT - 1),
     }
     if point_in_snake(snake, food.x, food.y) {
         return generate_food_pos(snake)
     }
     return food
+}
+
+check_food_collision :: proc(snake: []Point, food: ^Point) -> bool {
+    status := snake[0].x == food^.x && snake[0].y == food^.y
+    if status {
+        food^ = generate_food_pos(snake)
+    }
+    return status
 }
 
 draw_snake :: proc() {
@@ -126,26 +138,28 @@ point_in_snake :: proc(snake: []Point, x, y: int) -> bool {
     return false
 }
 
-move_snake :: proc(snake: []Point, dir: Direction) {
-    old_pos := snake[0]
+move_snake :: proc(snake: ^[dynamic]Point, dir: Direction, should_grow: bool) {
+    old_pos := snake^[0]
     n := len(snake)
     switch dir {
         case .NONE:
             return
         case .UP:
-            snake[0].y -= 1
+            snake^[0].y -= 1
         case .DOWN:
-            snake[0].y += 1
+            snake^[0].y += 1
         case .LEFT:
-            snake[0].x -= 2
+            snake^[0].x -= 2
         case .RIGHT:
-            snake[0].x += 2
+            snake^[0].x += 2
     }
     for i in 1..<n {
-        current_pos := snake[i]
-        snake[i] = old_pos
+        current_pos := snake^[i]
+        snake^[i] = old_pos
         old_pos = current_pos
-
+        if i == n - 1 && should_grow {
+            append(snake, old_pos)
+        }
     }
 }
 
